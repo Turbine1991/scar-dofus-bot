@@ -1,0 +1,392 @@
+{.include_once Global.scar}
+
+const
+BANK_USE = true;
+ITEM_WHEAT = 0;
+ITEM_WATER = 1;
+ITEM_YEAST = 2;
+ITEM_POTION_RECALL = 3;
+ITEM_WALNUT = 4;
+ITEM_CHESTNUT = 5;
+ITEM_ASH = 6;
+
+var
+Bank_DoorPos, Bank_LeavePos, Bank_NpcPos, Bank_ConsultSafePos: TPoint;
+Inv_InvPos: TPoint;
+Inv_EmptyBarPos: TPoint;
+Inv_BarColour, Inv_BarFullColour: Integer;
+Bank_BankPos: TPoint;
+Bank_Banked: Integer;
+Inv_Destroy: array of Integer;
+BankInv_ImgPromptQuantity: Integer;
+
+///
+procedure Inv_AddDestroy(item: Integer);
+begin
+  SetArrayLength(Inv_Destroy, GetArrayLength(Inv_Destroy) + 1);
+  Inv_Destroy[High(Inv_Destroy)] := item;
+end;
+
+///
+procedure BankInv_Init;
+begin
+  Bank_DoorPos := Point(547, 215);
+  Bank_LeavePos := Point(234, 434);
+  Bank_NpcPos := Point(377, 271);
+  Bank_ConsultSafePos := Point(127, 258);
+
+  Inv_InvPos := Point(612, 204);
+  Inv_EmptyBarPos := Point(618, 526);
+  Inv_BarColour := 3951185;
+  Inv_BarFullColour := 2631924;
+  Bank_BankPos := Point(46, 211);
+
+  BankInv_ImgPromptQuantity := LoadBitmap(ScriptPath + 'Img\prompt-quantity.bmp');
+
+  Inv_ImgInInv := LoadBitmap(ScriptPath + 'Img\in-inv.bmp');
+  Bank_ImgInBank := LoadBitmap(ScriptPath + 'Img\in-bank.bmp');
+
+  Inv_AddDestroy(ITEM_ASH);
+  Inv_AddDestroy(ITEM_CHESTNUT);
+  Inv_AddDestroy(ITEM_WALNUT);
+end;
+
+///
+procedure Bank_Enter;
+begin
+  Sleep(600);
+  ClickWind(Bank_DoorPos.x, Bank_DoorPos.y, 0, 0, true);
+  Sleep(7000);
+end;
+
+///
+procedure Bank_Open;
+begin
+  ClickDialogue(Bank_NpcPos.x, Bank_NpcPos.y, 0, true, false);
+  Sleep(3000);
+  ClickWind(Bank_ConsultSafePos.x, Bank_ConsultSafePos.y, 0, 0, true);
+  Sleep(2000);
+end;
+
+///
+procedure Bank_Close;
+begin
+  ClickWind(745, 123, 0, 0, true);
+  Sleep(2000);
+end;
+
+procedure Bank_Leave;
+var i: Integer;
+begin
+  for i := 0 to 2 do
+  begin
+    ClickWind(Bank_LeavePos.x, Bank_LeavePos.y, 0, 0, true);
+    sleep(250);
+  end;
+
+  Sleep(3000);
+end;
+
+///
+function BankInv_IsPromptQuantity: Boolean;
+var empty: TPoint;
+begin
+  Result := FindBitmap(BankInv_ImgPromptQuantity, empty.x, empty.y);
+end;
+
+///
+procedure Inv_MoveItem(from, into: TPoint; quantity: Integer);
+begin
+  HoldMouse(from.x, from.y, true);
+  Sleep(100);
+  MoveMouse(into.x, into.y);
+  ReleaseMouse(into.x, into.y, true);
+  Sleep(1000);
+  if (BankInv_IsPromptQuantity) then
+  begin
+    SendKeys(IntToStr(quantity));
+    Sleep(500);
+    KeyDown(13);
+    Sleep(50);
+    KeyUp(13);
+    Sleep(1000);
+  end;
+end;
+
+///
+procedure Inv_DestroyItem(pos: TPoint; quantity: Integer);
+begin
+
+
+  ClickDialogue(pos.x, pos.y, 3, false, false);
+  Sleep(500);
+
+  if (BankInv_IsPromptQuantity) then
+  begin
+    SendKeys(IntToStr(quantity));
+    Sleep(500);
+    KeyDown(13);
+    Sleep(50);
+    KeyUp(13);
+
+    KeyDown(13);
+    Sleep(50);
+    KeyUp(13);
+    Sleep(1000);
+  end;
+end;
+
+///
+function Inv_Empty: Boolean;
+begin
+  if (GetColor(Inv_EmptyBarPos.x, Inv_EmptyBarPos.y) = Inv_BarColour) then
+    Result := true;
+end;
+
+///
+function Inv_Full: Boolean;
+var x, y: Integer;
+begin
+  if (FindColorTolerance(x, y, Inv_BarFullColour, Inv_EmptyBarPos.x, Inv_EmptyBarPos.y, Inv_EmptyBarPos.x + 32, Inv_EmptyBarPos.y + 8, 25)) then
+  begin
+    Result := true;
+    AddToReport('Full Inventory');
+  end;
+end;
+
+///
+function Inv_GetPods: Integer;
+var i, width: Integer;
+begin
+  if (Inv_IsOpen = false) then
+    Exit;
+
+  width := 146;
+
+  while((i <= width) and (GetColor(597 + i, 529) <> 3951185)) do
+    inc(i);
+
+  if (i > 0) then
+    dec(i);
+
+  Result := Floor((i / width) * 100);
+end;
+
+///
+function Inv_Open: Boolean;
+begin
+  if (Inv_IsOpen) then
+    Exit;
+
+  ClickWind(513, 626, 0, 0, true);  //Open
+  Sleep(1000);
+end;
+
+function Inv_CheckFull: Boolean;
+begin
+  Inv_Open;
+  Result := Inv_Full;
+  Global_Close;
+  Sleep(1000);
+end;
+
+///
+function Inv_FindItem(var x: Integer; var y: Integer; index: Integer): Boolean;
+var
+i, j, empty: Integer;
+found: Boolean;
+begin
+  if (Inv_IsOpen = false) then
+    Exit;
+
+  for i := 0 to 3 do  //One extra for current tab
+  begin
+    //Scroll until found or not found
+    Click(740, 152, true);
+    Sleep(50);
+    HoldMouse(740, 152, true);
+
+    j := 152;
+    while ((j < 491) and (found = false)) do
+    begin
+      if (FindTransparentBitmapTolerance(Items[index], x, y, 0, 597, 143, 731, 502, 50)) then
+      begin
+        found := true;
+      end else
+      begin
+        Sleep(1);
+        MoveMouse(740, j);
+      end;
+
+      IncEx(j, 10);
+    end;
+
+    GetMousePos(empty, j);
+    ReleaseMouse(740, j, true);
+    Sleep(50);
+
+    //Click tabs
+    if (found = false) then
+    begin
+      Click(626 + (24 * i), 111, true);
+      Sleep(800);
+    end;
+  end;
+
+  Result := found;
+end;
+
+///
+function Bank_FindItem(var x: Integer; var y: Integer; index: Integer): Boolean;
+var
+i, empty: Integer;
+begin
+  if (Bank_IsOpen = false) then
+    Exit;
+
+  //Click tab
+  Click(48, 159, true);
+  Sleep(800);
+
+  //Scroll until found or not found
+  Click(170, 199, true);
+  Sleep(50);
+  HoldMouse(170, 199, true);
+
+  i := 199;
+  while ((i < 483)
+    and (FindTransparentBitmapTolerance(Items[index], x, y, 0, 28, 190, 161, 494, 50) = false)) do
+  begin
+    Sleep(1);
+    MoveMouse(740, i);
+    IncEx(i, 10);
+  end;
+
+  GetMousePos(empty, i);
+  ReleaseMouse(170, i, true);
+  Sleep(50);
+
+  if (x <> 0) then
+    Result := true;
+end;
+
+///
+procedure Bank_Withdraw(x, y, quantity: Integer);
+var i: Integer;
+begin
+  if (Bank_IsOpen = false) then
+    Exit;
+
+  if (quantity = 1) then  //Checking for bug
+  begin
+    for i := 0 to 3 do
+    begin
+    Click(x, y, true);
+    Sleep(100);
+    Click(x, y, true);
+    end;
+  end else
+  begin
+    Sleep(250);
+    HoldMouse(x, y, true);
+    Sleep(250);
+    MoveMouse(617, 206);
+    Sleep(250);
+    ReleaseMouse(617, 206, true);
+    Sleep(1000);
+    SendKeys(IntToStr(quantity));
+    Sleep(500);
+    KeyDown(13);
+    Sleep(50);
+    KeyUp(13);
+  end;
+
+  Sleep(2000);
+end;
+
+procedure Bank_DepositAll;
+var i, j: Integer;
+begin
+  for i := 2 downto 0 do
+  begin
+    //Click tabs
+    Click(635 + (24 * i), 159, true);
+    Sleep(800);
+    ClickWind(606, 160, 0, 0, true);
+
+    if (Inv_Empty) then
+      Exit;
+
+    Sleep(9000);
+  end;
+  {While(Inv_Empty = false) do
+  begin
+    Inv_MoveItem(Inv_InvPos, Bank_BankPos);
+    //Click(Inv_InvPos.x, Inv_InvPos.y, true);
+    //Sleep(500);
+  end;}
+end;
+
+///
+procedure Bank_Procedure;
+var x, y: Integer;
+begin
+  AddToReport('Lets open bank door and do our business');
+
+  if (FindBitmapTolerance(Portal_ImgDialogueZap, x, y, 30)) then
+    Exit;
+
+  Bank_Enter;
+
+  repeat
+  while (Bank_IsOpen = false) do
+    Bank_Open;
+
+  Bank_DepositAll;
+  Sleep(2000);
+
+  if (PATH_RECALL_FROM_USE) then
+  begin
+    if (Bank_FindItem(x, y, ITEM_POTION_RECALL)) then
+    begin
+      Bank_Withdraw(x, y, 1);
+    end else
+    begin
+      AddToReport('Unable to locate recall potion');
+      Exit;  //Make it stop working in bank
+    end;
+
+    Sleep(3000);
+  end;
+
+  Bank_Close;
+
+  Inv_Open;
+  until(Inv_FindItem(x, y, ITEM_POTION_RECALL));
+
+  Global_Close;
+  Sleep(3000);
+
+  Bank_Leave;
+end;
+
+//
+procedure Inv_DestroyUntilFree;
+var
+i: Integer;
+pos: TPoint;
+begin
+  if (Inv_IsOpen = false) then
+    Exit;
+
+  while((Inv_GetPods = 100) and (i <= High(Inv_Destroy))) do
+  begin
+    if (Inv_FindItem(pos.x, pos.y, Inv_Destroy[i])) then
+    begin
+      Inv_DestroyItem(pos, 1);
+    end else
+    begin
+      inc(i);
+    end;
+  end;
+end;

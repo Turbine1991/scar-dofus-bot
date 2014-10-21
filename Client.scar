@@ -1,0 +1,21 @@
+var
+CLIENT_TITLE: String;
+Client_Width, Client_Height: Integer;
+
+procedure Client_Init;
+begin
+  CLIENT_TITLE := ReadINI('Client', 'name', ScriptPath + 'Setup\Config.ini')
+
+  GetClientDimensions(Client_Width, Client_Height);
+  Writeln('Client Dimensions: ' + IntToStr(Client_Width) + 'x' + IntToStr(Client_Height));
+end;
+
+function Client_Capture: Boolean;
+begin
+  if (FindWindowTitlePart(CLIENT_TITLE, false) = false) then
+    Exit;
+
+  FindWindow(CLIENT_TITLE);  //Capture window
+  ActivateClient;  //Focus window
+  Result := true;
+end;

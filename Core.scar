@@ -1,0 +1,97 @@
+program dofusWCbot;
+
+{.include_once Client.scar}
+{.include_once Tree.scar}
+{.include_once Ocr.scar}
+{.include_once Player.scar}
+{.include_once Battle.scar}
+{.include_once Path.scar}
+{.include_once BankInv.scar}
+{.include_once Gather.scar}
+{.include_once Shop.scar}
+
+var
+x, y, index, num: integer;
+enemy: TPoint;
+tbank: Integer;
+begin
+  //tbank := GetSystemTime;
+  ClearReport;
+
+  Client_Init;
+
+  if (Client_Capture = false) then  //Game not open
+    Exit;
+
+  Global_Init;
+  Tree_Init;
+  Player_Init;
+  Battle_Init;
+  Path_Init;
+  BankInv_Init;
+  Gather_Init;
+  Shop_Init;
+  Sleep(2000);
+
+//Bank_Procedure;
+  //Path_LocatePathPos;  //Continues from current position with any path
+//Path_Cur := PATH_PATHS_BANK;
+  //Path_ToBank := false;
+  repeat
+    Client_Capture;
+    Global_Close;
+
+    Player_PosFind(Player_Pos.x, Player_Pos.y);
+
+    if (Path_Cur = PATH_PATHS_MAIN) then
+    begin
+      if ((GetSystemTime - tbank > 60000)) then
+      begin
+        Inv_Open;
+
+        if (Inv_GetPods = 100) then
+          Inv_DestroyUntilFree;
+
+        if (Inv_GetPods >= 95) then
+          Path_FinishTrip;
+
+        Global_Close;
+        tbank := GetSystemTime;
+      end;
+
+      if (TREE_USE and Tree_Find(x, y)) then
+      begin
+        Tree_Chop(x, y);
+      end else
+      if (GATHER_USE and Gather_Find(x, y)) then
+      begin
+        Gather_Collect(x, y);
+      end else
+      begin
+        Path_Move;
+      end;
+    end else
+    begin
+      Path_Move;
+    end;
+
+    {Time_Reset;
+    while ((Battle_FindMonster(enemy, Point(0, 0), Point(0, 0))) and (Time_Up = false)) do
+    begin
+      ClickWindMouse(enemy.x, enemy.y, 0, 0, true);
+      Sleep(1000);
+    end;}
+
+    if (Battle_InBattle) then
+      Battle_DoBattle;
+
+    Wait(100);
+  until(IsFkeyDown(5));
+
+  AddToReport('Battles:' + IntToStr(Battle_Won + Battle_Lost));
+  AddToReport('Battles Won:' + IntToStr(Battle_Won));
+  AddToReport('Battles Lost/Deaths:' + IntToStr(Battle_Lost));
+  AddToReport('Been Ghost:' + IntToStr(Player_CountGhost));
+
+  AddToReport('Visited Bank:' + IntToStr(Bank_Banked));
+end.

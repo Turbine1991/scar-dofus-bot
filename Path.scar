@@ -1,0 +1,441 @@
+{.include_once BankInv.scar}
+{.include_once Client.scar}
+{.include_once Player.scar}
+{.include_once Global.scar}
+
+const
+PATH_EDGE_UP = 0;
+PATH_EDGE_RIGHT = 1;
+PATH_EDGE_DOWN = 2;
+PATH_EDGE_LEFT = 3;
+PATH_PATHS_MAIN = 0;
+PATH_PATHS_BANK = 1;
+PATH_PATHS_DEATH = 2;
+PATH_PATHS_GHOST_SHRINE = 3;
+PATH_PATHS_GHOST = 4;
+PATH_PATHS_MAX = 4;
+PATH_DEATH_USE = true;
+
+var
+Path_Pos: TPoint;
+Path_Index: array[0..PATH_PATHS_MAX] of Integer;
+Path_Paths: array[0..PATH_PATHS_MAX] of array of TPoint;
+Path_Cur: Integer;
+Path_ToBank: Boolean;
+
+///
+procedure Path_Add(x: Integer; y: Integer);  //Add position to waypoints
+begin
+  SetArrayLength(Path_Paths[Path_Cur], GetArrayLength(Path_Paths[Path_Cur]) + 1);
+  Path_Paths[Path_Cur][High(Path_Paths[Path_Cur])] := Point(x, y);
+end;
+
+///
+procedure Path_SetIndex(index: Integer);
+begin
+  Path_Index[Path_Cur] := index;
+end;
+
+///
+procedure Path_SetPath(cur: Integer);
+begin
+  Path_SetIndex(0);
+  Path_Cur := cur;
+  Path_SetIndex(0);
+
+  AddToReport('Switching to path: ' + IntToStr(cur));
+end;
+
+///
+procedure Path_Init;
+begin
+  Path_Cur := PATH_PATHS_MAIN;
+  Path_ToBank := true;
+
+  Path_SetPath(PATH_PATHS_MAIN);
+  //Bombu
+  Path_Add(-8, -23);
+  Path_Add(-8, -33);
+  Path_Add(-8, -22);
+  Path_Add(-10, -22);
+  Path_Add(-8, -22);
+
+  //Hops
+  {Path_Add(6, -25);}
+
+  //Plains
+  {Path_Add(1, 30);
+  Path_Add(5, 30);
+  Path_Add(6, 30);
+  Path_Add(7, 30);
+  Path_Add(6, 31);
+  Path_Add(5, 31);
+  Path_Add(2, 31);
+  Path_Add(2, 30);
+  Path_Add(1, 30);}
+
+  //Trees
+  {Path_Add(3, -24);
+  Path_Add(2, -24);
+  Path_Add(1, -24);
+  Path_Add(0, -24);
+  Path_Add(0, -25);
+  Path_Add(1, -25);
+  Path_Add(0, -26);
+  Path_Add(1, -26);
+  Path_Add(2, -26);
+  Path_Add(2, -24);
+  Path_Add(3, -24);}
+
+  //Wheat
+  {Path_Add(5, -24);}
+  //Hip-Hop
+  {Path_Add(6, -24);}
+
+  Path_SetPath(PATH_PATHS_BANK);
+  //Bombu
+  Path_Add(-8, -23);
+  Path_Add(5, -23);
+  Path_Add(5, -22);
+  Path_Add(4, -22);
+  //Plains tree
+  Path_Add(4, -19);
+  Path_Add(4, -16);
+  //Tree & Wheat & Hops
+  {Path_Add(5, -23);
+  Path_Add(5, -22);
+  Path_Add(4, -22);
+  Path_Add(4, -16);}
+
+  Path_SetPath(PATH_PATHS_DEATH);
+  //Plains tree
+  {Path_Add(1, 24);
+  Path_Add(1, 30);}
+  //Tree & Wheat & Hops
+  {Path_Add(4, -19);
+  Path_Add(4, -20);
+  Path_Add(4, -21);
+  Path_Add(4, -22);
+  Path_Add(5, -22);
+  Path_Add(5, -23);}
+
+  Path_SetPath(PATH_PATHS_GHOST_SHRINE);
+  //Bombu
+  Path_Add(-7, -57);
+  Path_Add(-12, -54);
+  Path_Add(-11, -54);
+  //Plains tree
+  {Path_Add(9, 16);
+  Path_Add(13, 16);
+  Path_Add(13, 20);
+  Path_Add(10, 20);
+  Path_Add(10, 19);}
+  //Tree & Wheat & Hops
+  {Path_Add(2, -12);}
+
+  Path_SetPath(PATH_PATHS_GHOST);
+  //Plains tree
+  //Tree & Wheat & Hops
+  {Path_Add(4, -12);
+  Path_Add(4, -22);
+  Path_Add(5, -22);
+  Path_Add(5, -23);}
+
+  Path_SetPath(PATH_PATHS_MAIN);  //Set back to main
+end;
+
+///
+function Path_GetIndex: Integer;
+begin
+  Result := Path_Index[Path_Cur];
+end;
+
+///
+function Path_EdgeGet(dir: Integer): TPoint;
+begin
+  if (dir = PATH_EDGE_UP) then
+  begin
+    Result := Point(RandomRange(96, Client_Width - 96), 27);
+  end else
+  if (dir = PATH_EDGE_RIGHT) then
+  begin
+    Result := Point(Client_Width - 12, RandomRange(50, Client_Height - 98));
+  end else
+  if (dir = PATH_EDGE_DOWN) then
+  begin
+    Result := Point(RandomRange(96, Client_Width), Client_Height - 98);
+  end else
+  if (dir = PATH_EDGE_LEFT) then
+  begin
+    Result := Point(32, RandomRange(96, Client_Height - 98 - 24));
+  end;
+end;
+
+///
+procedure Path_FinishTrip;
+var x, y: Integer;
+begin
+  AddToReport('Packing bags and going to bank');
+  if (Battle_InBattle) then
+    exit;
+
+  repeat
+    if (PATH_RECALL_FROM_USE) then
+    begin
+      //Inv_Open;
+      Sleep(4000);
+
+      if (Inv_FindItem(x, y, ITEM_POTION_RECALL)) then
+      begin
+        Path_SetPath(PATH_PATHS_BANK);
+        Path_ToBank := true;
+        ClickDialogue(x, y, 0, false, true);
+        Sleep(4000);
+        Global_Close;
+      end;
+    end else
+    begin
+      Path_SetPath(PATH_PATHS_BANK);
+      Path_ToBank := true;
+    end;
+
+    Player_PosFind(Player_Pos.x, Player_Pos.y);
+  until(Player_Pos = Path_Paths[PATH_PATHS_BANK][0]);
+end;
+
+///
+procedure Path_Next;
+var
+endPath: Boolean;
+pos: TPoint;
+begin
+  if (Path_GetIndex = High(Path_Paths[Path_Cur])) then
+    endPath := true;
+
+  if (Path_Cur = PATH_PATHS_BANK) then
+  begin
+    if (BANK_USE = false) then
+    begin
+      AddToReport('Banking is disabled, unable to follow path');
+      Exit;
+    end;
+
+    if (Path_ToBank and endPath) then
+    begin
+      Path_ToBank := false;
+      Bank_Procedure;
+      Exit;
+    end else
+    if ((Path_ToBank = false) and (Path_GetIndex = 0)) then
+    begin
+      if (PATH_PORTAL_TO_USE) then
+      begin
+        repeat
+          Portal_Open;
+          Portal_Use;
+          Sleep(5000);
+          Path_SetPath(PATH_PATHS_DEATH);
+          Player_PosFind(pos.x, pos.y);
+        until(Player_Pos <> pos);
+      end else
+      begin
+        Path_SetPath(PATH_PATHS_MAIN);  //Usual way
+      end;
+      Exit;
+    end;
+
+    if (Path_ToBank = false) then
+    begin
+      Dec(Path_Index[Path_Cur]);
+      Exit;
+    end;
+  end else
+  if (Path_Cur = PATH_PATHS_DEATH) then
+  begin
+    if (endPath) then
+    begin
+      Path_SetPath(PATH_PATHS_MAIN);  //Usual way
+      Exit;
+    end;
+  end else
+  if (Path_Cur = PATH_PATHS_GHOST_SHRINE) then
+  begin
+    if (endPath) then
+    begin
+      Player_DoHuman;
+
+      if (PATH_RECALL_FROM_USE) then
+      begin
+      AddTOReport('Ok Working');
+        Inv_Open;
+        Path_FinishTrip;
+        Exit;
+      end else
+      begin
+      AddTOReport('Not Working');
+        Path_SetPath(PATH_PATHS_GHOST);
+        Exit;
+      end;
+    end;
+  end else
+  if (Path_Cur = PATH_PATHS_GHOST) then
+  begin
+    if (endPath) then
+    begin
+      Path_SetPath(PATH_PATHS_MAIN);
+      Exit;
+    end;
+  end else
+  if (Path_Cur = PATH_PATHS_MAIN) then
+  begin
+    {if (endPath) then  //No modulus
+    begin
+      Path_SetIndex(0);
+      if (Inv_CheckFull) then
+      begin
+        Path_SetPath(PATH_PATHS_BANK);
+        Path_ToBank := true;
+      end;
+
+      Exit;
+    end;}
+  end;
+
+  Inc(Path_Index[Path_Cur]);
+  if (Path_Index[Path_Cur] > High(Path_Paths[Path_Cur])) then
+    Path_Index[Path_Cur] := 0;
+  //AddToReport('Moving to: ' + IntToStr(Path_Paths[Path_Cur][Path_GetIndex].x) + ' ' + IntToStr(Path_Paths[Path_Cur][Path_GetIndex].y));
+end;
+
+///
+function Path_NextDir: Integer;
+var
+xDist, yDist: Integer;
+way: TPoint;
+begin
+  Result := -1;
+
+  Global_Close;
+
+  Player_PosFind(Player_Pos.x, Player_Pos.y);
+
+  way := Path_Paths[Path_Cur][Path_GetIndex];
+
+  if ((Player_Pos.x <> way.x) or (Player_Pos.y <> way.y)) then
+  begin
+    xDist := Floor(Abs(way.x - Path_Pos.x));
+    yDist := Floor(Abs(Path_Pos.y - way.y));
+
+    //Follow most direct path
+    //if (xDist > yDist) then  //X
+    //begin
+      if (way.x > Player_Pos.x) then
+      begin
+        Result := PATH_EDGE_RIGHT;
+      end else
+      if (way.x < Player_Pos.x) then
+      begin
+        Result := PATH_EDGE_LEFT;
+      end else
+
+      if (way.y > Player_Pos.y) then
+      begin
+        Result := PATH_EDGE_DOWN;
+      end else
+      if (way.y < Player_Pos.y) then
+      begin
+        Result := PATH_EDGE_UP;
+      //end;
+    end;
+    //end else  //Y
+    //begin
+  end else
+  begin
+    Path_Next;
+  end;
+end;
+
+///
+procedure Path_EdgeMove(dir: Integer);  //Move one edge
+var
+x, y: Integer;
+next, previous: TPoint;
+way: TPoint;
+time: Integer;
+second: Boolean;
+late: Boolean;
+pos: TPoint;
+begin
+  if (dir = -1) then
+    Exit;
+
+  Global_Close;
+
+  previous := Player_Pos;
+  Player_PosFind(Player_Pos.x, Player_Pos.y);
+  next := Player_Pos;
+  time := GetSystemTime;
+
+  if (dir = PATH_EDGE_UP) then
+    Dec(next.y);
+  if (dir = PATH_EDGE_RIGHT) then
+    Inc(next.x);
+  if (dir = PATH_EDGE_LEFT) then
+    Dec(next.x);
+  if (dir = PATH_EDGE_DOWN) then
+    Inc(next.y);
+
+  AddToReport('Theres nothing left for me here.. Ill move on start a new life');
+
+  //Click(Path_EdgePos[dir].x, Path_EdgePos[dir].y, true);
+  pos := Path_EdgeGet(dir);
+  Click(pos.x, pos.y, true);
+
+  while((GetSystemTime - time <= 11000) and (Player_Pos = previous) and (Battle_InBattle = false)) do
+  begin
+    Sleep(100);
+      {if ((GetSystemTime - time mod 3000) = 0) then
+      begin
+        Click(pos.x, pos.y, true);
+        Sleep(1000);
+      end;}
+
+      Player_PosFind(Player_Pos.x, Player_Pos.y);
+  end;
+end;
+
+function Path_LocatePathPos: Boolean;
+var
+i, j: Integer;
+cur: TPoint;
+begin
+  Result := true;
+
+  Player_PosFind(cur.x, cur.y);
+
+  Path_SetPath(PATH_PATHS_MAIN);
+  for i := 0 to PATH_PATHS_MAX do
+  begin
+    for j := 0 to High(Path_Paths[i]) do
+    begin
+      if (Path_Paths[i][j] = cur) then
+      begin
+        Path_SetPath(i);
+        Path_SetIndex(j);
+        Exit;
+      end;
+    end;
+  end;
+
+  Result := false;
+end;
+
+///
+procedure Path_Move;  //Move to one or distance edge
+var dir: Integer;
+begin
+  dir := Path_NextDir;
+
+  if (dir > -1) then
+    Path_EdgeMove(dir);
+end;

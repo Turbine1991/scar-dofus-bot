@@ -1,0 +1,324 @@
+{.include_once Ocr.scar}
+{.include_once Global.scar}
+{.include_once Path.scar}
+{.include_once Client.scar}
+{.include_once Player.scar}
+
+const
+SKILL_MAX = 2;
+
+var
+Battle_NumericAPMP: Numeric;
+Battle_ImgPlayerMark: Integer;
+Battle_ImgEnemyMark: Integer;
+Battle_ImgSkipTurn: Integer;
+Battle_ImgFightResult: Integer;
+Battle_ImgVictory: Integer;
+Battle_ImgReady: Integer;
+Battle_Won, Battle_Lost: Integer;
+Battle_Monsters: array of Integer;
+
+procedure Battle_AddMonster(colour: Integer);
+begin
+  SetArrayLength(Battle_Monsters, GetArrayLength(Battle_Monsters) + 1);
+  Battle_Monsters[High(Battle_Monsters)] := colour;
+end;
+
+procedure Battle_Init;
+begin
+  Battle_NumericAPMP := Numeric_Load(ScriptPath + 'Img\AP&MP\', 16);
+
+  Battle_ImgPlayerMark := LoadBitmap(ScriptPath + 'Img\player-mark.bmp');
+  Battle_ImgEnemyMark := LoadBitmap(ScriptPath + 'Img\enemy-mark.bmp');
+  Battle_ImgSkipTurn := LoadBitmap(ScriptPath + 'Img\skip-turn.bmp');
+
+  Battle_ImgFightResult := LoadBitmap(ScriptPath + 'Img\fight-result.bmp');
+  Battle_ImgVictory := LoadBitmap(ScriptPath + 'Img\victory.bmp');
+  Battle_ImgReady := LoadBitmap(ScriptPath + 'Img\ready.bmp');
+
+  Battle_Won := 0; Battle_Lost := 0;
+
+  Battle_AddMonster(9233659);  //Flower
+  Battle_AddMonster(1289196);  //Small tofu
+  Battle_AddMonster(9192618);  //Pink piwi
+  Battle_AddMonster(7039993);  //Red piwi
+  Battle_AddMonster(3026662);  //Demonic rose
+  Battle_AddMonster(7836357);  //Frigntened evil dandelion
+  Battle_AddMonster(15582585);  //Bluebug
+  Battle_AddMonster(1542885);  //Orange lava
+  Battle_AddMonster(15781042);  //Blue Cube
+  Battle_AddMonster(16777164);  //Another Blue Cube
+  Battle_AddMonster(6191350);  //Red Cube
+  Battle_AddMonster(681983);  //Red Scarab
+  Battle_AddMonster(3467685);  //Green Scarab
+  Battle_AddMonster(3467685);  //Red Scarab
+  Battle_AddMonster(9291995);  //White Scarab
+  Battle_AddMonster(41977);  //Red Blob
+end;
+
+function Battle_FindMonster(var e: TPoint; from, toward: TPoint): Boolean;  //Will recode, currently hardcoded for testing
+var i: Integer;
+begin
+  Result := true;
+
+  if (toward = Point(0, 0)) then
+    toward := Point(Client_Width, Client_Height);
+
+  for i := 0 to High(Battle_Monsters) do
+    if (FindColor(e.x, e.y, Battle_Monsters[i], from.x, from.y, toward.x, toward.y)) then
+      Exit;
+
+  Result := false;
+end;
+
+function Battle_IsMyTurn: Boolean;
+var x, y: Integer;
+begin
+  Result := FindColor(x, y, 19967, 0, 0, Client_Width, Client_Height);
+end;
+
+function Battle_IsFinished: Boolean;
+var x, y: Integer;
+begin
+  if (FindBitmapTolerance(Dialogue_ImgCriticallyLow, x, y, 20)) then
+    Global_Close;
+
+  Result := FindBitmapTolerance(Battle_ImgFightResult, x, y, 100);
+end;
+
+function Battle_GetCellPos(ppos: TPoint): TPoint;
+var cpos: TPoint;
+begin
+  //26, 22 Offset
+  //54, 24
+  ppos.x := (ppos.x - 8); ppos.y := (ppos.y - 25);
+  cpos.x := Floor(ppos.x / 55);
+  cpos.y := Floor(ppos.y / 24);
+  Writeln('Cell: ' + TPAToStr([cpos]));
+end;
+
+function Battle_FindCellPos(xcell, ycell: Integer): TPoint;
+begin
+  //26, 22 Offset
+  //54, 24
+  Result := Point(8, 25);
+  Result := Point(Result.x + (xcell * 55), Result.y + (ycell * 24));
+end;
+
+function Battle_GetAP: Integer;
+begin
+  Result := Numeric_GetNumAt(441, 596, Battle_NumericAPMP);
+end;
+
+function Battle_GetMP: Integer;
+begin
+  Result := Numeric_GetNumAt(437, 617, Battle_NumericAPMP);
+end;
+
+procedure Battle_SkillsAttempt(atk: TPoint);
+var
+i, x, y: Integer;
+begin
+  Sleep(200);
+
+  for i := 49 to (49 + SKILL_MAX) do
+  begin
+    KeyDown(i);
+    Sleep(50);
+    KeyUp(i);
+    Sleep(400);
+
+    if (FindColorCircle(x, y, 10040098, atk.x, atk.y, 15)
+      and (FindColorCircleTolerance(x, y, 16187392, atk.x, atk.y, 15, 5)
+        or FindColorCircleTolerance(x, y, 16711680, atk.x, atk.y, 15, 5))) then
+    begin
+      ClickWind(x, y, 0, 0, true);
+      //atk.x, atk.y
+      Sleep(1000);
+    end;
+
+    Sleep(250);
+  end;
+end;
+
+procedure Battle_SkipTurn;
+begin
+  ClickWind(387, 620, 0, 0, true);
+  MoveMouse(0, 0);  //Move cursor out of the way
+  Sleep(250);
+end;
+
+function Battle_GetPlayerMark(var player: TPoint): Boolean;
+begin
+  Result := FindBitmapIn(Battle_ImgPlayerMark, player.x, player.y, 5, 25, 768, 551);
+end;
+
+function Battle_GetEnemyMarks(var enemy: TPoint): Boolean;
+begin
+  //Result := FindTransparentBitmaps(Battle_ImgEnemyMark, enemy, 0, 5, 25, 768, 551);
+  Result := FindColorTolerance(enemy.x, enemy.y, 16711680, 5, 25, 768, 551, 50);
+end;
+
+{procedure Battle_MoveClosest;
+var player, enemy: TPoint;
+arr: TPointArray;
+x, y: Integer;
+begin
+  Battle_GetMark(player, enemy);
+
+  //ClickWind(player.x, player.y, 0, 0, true);
+  Sleep(500);
+  if (FindColorSpiral(enemy.x, enemy.y, 6736896, Client_Width, Client_Height, 10)) then
+    ClickWind(enemy.x, enemy.y, 0, 0, true);
+  if (FindColorsSpiralTolerance(x, y, arr, 6736896, Client_Width, Client_Height, 10)) then
+    ClickWind(arr[0].x, arr[0].y, 0, 0, true);
+
+  Sleep(500);
+end;}
+{
+function Battle_GetClosest(enemies: TPointArray; pos: TPoint): TPoint;
+var
+i: Integer;
+dis1, dis2: Extended;
+closest, enemy: TPoint;
+begin
+  if (GetArrayLength(enemies) = 0) then
+    Exit;
+
+  closest := enemies[0];
+  for i := 0 to High(enemies) do
+  begin
+    enemy := enemies[i];
+    dis1 := Abs(pos.x - closest.x) + Abs(pos.y - closest.y);
+    dis2 := Abs(pos.x - enemy.x) + Abs(pos.y - enemy.y);
+    if (dis2 < dis1) then
+    begin
+      DecEx(enemy.x, 5);
+      IncEx(enemy.y, 2);
+      closest := enemy;
+    end;
+  end;
+
+  Result := closest;
+end;}
+
+function Battle_DoBattle: Boolean;
+var
+x, y, i: Integer;
+player, pcpos, pcmove: TPoint;
+enemy: TPoint;
+atk, skill, temp: TPoint;
+begin
+  while (FindBitmapTolerance(Battle_ImgReady, x, y, 10)) do
+  begin
+    Sleep(250);
+
+    if (Battle_GetEnemyMarks(enemy)) then  //Move closer to enemy initially
+    begin
+      if (FindColorSpiral2(x, y, 8925, enemy.x - 200, enemy.y - 200, enemy.x + 200, enemy.y + 200)) then
+        ClickWind(x, y, 0, 0, true);
+    end;
+
+    ClickWind(383, 618, 0, 0, true);
+    Sleep(1000);
+  end;
+
+  repeat
+    if (Battle_GetEnemyMarks(enemy)) then
+    begin
+      while ((Battle_IsFinished = false) and Battle_InBattle and (Battle_IsMyTurn = false) and (Player_HasGhost = false)) do
+      begin
+        {if (FindBitmap(Img_Dialogue_Ok, x, y)) then
+        begin
+          ClickMouse(x, y, true);
+          Sleep(4000);
+        end;}
+
+        Sleep(50);
+      end;
+
+      if (Battle_GetPlayerMark(player)) then
+      begin
+      {
+        //Entirely untested, Battle_GetCellPos, Battle_FindCellPos
+        //are only half accurate. May be enough.
+
+        pcpos := Battle_GetCellPos(player);
+        //Inc(pcpos.x, 1)  //Right
+        //Dec(pcpos.y, 1)  //Up
+
+        //Example of use, (not checking distance before moving)
+        if (enemy.x > player.x) then
+          Inc(pcpos.x, 1)  //Move Right
+        if (enemy.x < player.x) then
+          Dec(pcpos.x, 1)  //Move Left
+
+        if (enemy.y > player.y) then
+          Inc(pcpos.y, 1)  //Move Down
+        if (enemy.y < player.y) then
+          Dec(pcpos.y, 1)  //Move Up
+
+        pcmove := Battle_FindCellPos(pcpos.x, pcpos.y);
+        ClickWind(pcmove.x, pcmove.y, 0, 0, true);
+      }
+        //Don't use
+        {MoveMouse(player.x, player.y);
+        Sleep(2500);
+        if (FindColorSpiral2(x, y, 6736896, enemy.x - 400, enemy.y - 400, enemy.x + 400, enemy.y + 400)) then
+          ClickWind(x, y, 0, 0, true);}
+
+        Click(723, 621, true);
+        Sleep(250);
+
+        //If skill available, select
+        Battle_GetEnemyMarks(enemy)
+        Battle_SkillsAttempt(enemy);
+      end;
+    end else
+    begin
+      Writeln('Cant find enemy or player');
+    end;
+
+    Battle_SkipTurn;
+    Sleep(1000);
+
+    //Global_Close;
+
+    if (Player_HasGhost) then
+    begin
+      Inc(Player_CountGhost);
+      Path_SetPath(PATH_PATHS_GHOST_SHRINE);
+      Sleep(1000);
+      Player_DoGhost;
+      Sleep(500);
+      Global_Close;  //Close death info
+      Exit;
+    end;
+  until(Battle_IsFinished);
+
+  Result := FindBitmapTolerance(Battle_ImgVictory, x, y, 100);
+
+  Global_Close;
+
+  if (Result = false) then  //Lost
+  begin
+    Inc(Battle_Lost);
+    Sleep(5000);
+
+    if (PATH_PORTAL_TO_USE) then
+    begin
+      //Path_SetPath(PATH_PATHS_BANK);
+      //Path_ToBank := true;
+      Portal_Open;
+      Portal_Use;
+      Sleep(5000);
+    end;
+
+    Path_SetPath(PATH_PATHS_DEATH);
+  end else
+  begin
+    Inc(Battle_Won);
+  end;
+
+  Time_Reset;
+end;

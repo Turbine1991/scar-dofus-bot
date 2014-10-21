@@ -1,0 +1,95 @@
+{.include_once Global.scar}
+{.include_once Client.scar}
+
+var
+Player_FontPos: Font;
+Player_Pos: TPoint;
+Player_ImgGhost: Integer;
+Player_CountGhost: Integer;
+Player_LastPosRaw: String;
+
+///
+procedure Player_Init;
+begin
+  Player_FontPos := Font_Load(ScriptPath + 'OCR\Pos\', 0, 9);
+  Player_ImgGhost := LoadBitmap(ScriptPath + 'Img\ghost.bmp');
+end;
+
+///
+function Player_PosFindStr: String;
+var str: String;
+x, y: Integer;
+time: Integer;
+begin
+  Time_Reset;
+  time := GetSystemTime;
+
+  repeat
+    Global_Close;
+    Sleep(10);
+    str := Font_GetTextAt(15, 49, 6, Player_FontPos);
+
+    if (str <> Player_LastPosRaw) then
+    begin
+      Player_LastPosRaw := str
+      Writeln('Raw Pos: ' + str);
+    end;
+
+  if ((GetSystemTime - time) > 30000) then
+  begin
+    AddToReport('Sorry, im having a fit finding the coordinates');
+    Result := '';
+    Exit;
+  end;
+
+  until( ((Length( GetNumbers(str) ) >= 2) and ((Length( GetNumbers(str) ) <= 4)
+    and (ChrCount(',', str) = 1) and (Global_HasBlank = false)))
+      );//or Time_Up );
+
+  Result := str;
+end;
+
+procedure Player_PosFind(var x: Integer; var y: Integer);
+var
+temp: TStringArray;
+str: Variant;
+begin
+  str := Player_PosFindStr;
+
+  if (str <> '') then
+  begin
+    temp := Explode(',', str);
+    x := StrToInt(temp[0]); y := StrToInt(temp[1]);
+  end;
+end;
+
+///
+function Player_HasGhost: Boolean;
+var empty: Integer;
+begin
+  Result := FindBitmap(Player_ImgGhost, empty, empty);
+end;
+
+///
+procedure Player_DoGhost;
+var x, y: Integer;
+begin
+  ClickWindMouse(359, 397, 0, 0, true);  //Become ghost
+  Sleep(1000);
+  Global_Close;
+  Sleep(1000);
+end;
+
+///
+procedure Player_DoHuman;
+var x, y: Integer;
+begin
+  AddToReport('Doing human');
+  if (FindColorTolerance(x, y, 3533055, 0, 0, Client_Width, Client_Height, 1)) then
+  begin
+    Click(x, y, true);
+    Click(x, y, true);
+  end;
+
+  Sleep(5000);
+end;

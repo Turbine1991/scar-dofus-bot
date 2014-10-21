@@ -1,0 +1,96 @@
+{.include_once Global.scar}
+{.include_once Player.scar}
+
+var
+Shop_ImgShop: Integer;
+
+///
+procedure Shop_Init;
+begin
+  Shop_ImgShop := LoadBitmap(ScriptPath + 'Img\shop.bmp');
+end;
+
+///
+function Shop_FindItem(var x: Integer; var y: Integer; index: Integer): Boolean;
+var
+i, empty: Integer;
+begin
+  //Scroll until found or not found
+  Click(256, 207, true);
+  Sleep(200);
+  HoldMouse(256, 207, true);
+Sleep(500);
+  i := 207;
+  while ((i < 510)
+    and (FindTransparentBitmap(Items[index], x, y, 0, 28, 189, 251, 531) = false)) do
+  begin
+    Sleep(40);
+    MoveMouse(256, i);
+    IncEx(i, 10);
+  end;
+
+  GetMousePos(empty, i);
+  ReleaseMouse(256, i, true);
+  Sleep(50);
+
+  if (x <> 0) then
+    Result := true;
+end;
+
+///
+procedure Shop_Buy(x, y, quantity: Integer);
+begin
+  ClickWind(x, y, 0, 0, true);
+  Sleep(1000);
+  SendKeys(IntToStr(quantity));
+  Sleep(500);
+  ClickWind(431, 459, 0, 0, true);
+  Sleep(1000);
+end;
+
+///
+function Shop_IsOpen: Boolean;
+var empty: Integer;
+begin
+  Result := FindBitmap(Shop_ImgShop, empty, empty);
+end;
+
+///
+procedure Shop_EnterDoor;
+var pos: TPoint;
+begin
+  Player_PosFind(pos.x, pos.y);
+
+  if (pos = Point(1, -16)) then  //Incase I make a mistake
+  begin
+    while(Global_HasBlank = false) do
+    begin
+      Click(567, 208, true);
+      Sleep(3000)
+    end;
+  end;
+end;
+
+///
+procedure Shop_Open;
+var pos: TPoint;
+begin
+  while(Shop_IsOpen = false) do
+  begin
+    ClickDialogue(219, 245, 0, true, false);
+    Sleep(3000)
+  end;
+
+  Sleep(1000)
+end;
+
+///
+procedure Shop_Leave;
+var pos: TPoint;
+begin
+  while(Global_HasBlank = true) do
+  begin
+    Click(609, 396, true);
+    Sleep(1000)
+  end;
+end;

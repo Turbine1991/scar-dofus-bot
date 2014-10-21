@@ -1,0 +1,288 @@
+{.include_once OCR.scar}
+
+const
+TIME_TIMEOUT = 15000;
+SAFETY = true;
+PATH_PORTAL_TO_USE = false;
+PATH_RECALL_FROM_USE = true;
+
+var
+Time_Time: Integer;
+Monster_ImgHover: Integer;
+Global_ImgClose, Global_ImgRequest, Img_Dialogue_Ok, Global_ImgArrow: Integer;
+Battle_ImgInBattle: Integer;
+Items: array of Integer;
+Global_ImgBlank: Integer;
+Portal_Img, Portal_Img2, Portal_ImgToSel, Portal_ImgToUnsel1, Portal_ImgToUnsel2, Portal_ImgDialogueZap: Integer;
+Dialogue_ImgCriticallyLow: Integer;
+Enemy_ImgHover: Integer;
+Inv_ImgInInv, Bank_ImgInBank: Integer;
+
+procedure Global_Init;
+var temp: Numeric;
+begin
+  Monster_ImgHover := LoadBitmap(ScriptPath + 'Img\monster-hover.bmp');
+  Global_ImgClose := LoadBitmap(ScriptPath + 'Img\close.bmp');
+  Global_ImgRequest := LoadBitmap(ScriptPath + 'Img\request.bmp');
+  Img_Dialogue_Ok := LoadBitmap(ScriptPath + 'Img\dialogue-ok.bmp');
+  Global_ImgArrow := LoadBitmap(ScriptPath + 'Img\arrow.bmp');
+
+  Battle_ImgInBattle := LoadBitmap(ScriptPath + 'Img\in-battle.bmp');
+
+  Global_ImgBlank := LoadBitmap(ScriptPath + 'Img\blank.bmp');
+
+  Portal_Img := LoadBitmap(ScriptPath + 'Img\portal.bmp');
+  Portal_Img2 := LoadBitmap(ScriptPath + 'Img\portal.bmp');
+  Portal_ImgToSel := LoadBitmap(ScriptPath + 'Img\Portal\sel.bmp');
+  Portal_ImgToUnsel1 := LoadBitmap(ScriptPath + 'Img\Portal\unsel1.bmp');
+  Portal_ImgToUnsel2 := LoadBitmap(ScriptPath + 'Img\Portal\unsel2.bmp');
+  Portal_ImgDialogueZap := LoadBitmap(ScriptPath + 'Img\dialogue-zap.bmp');
+
+  Enemy_ImgHover := LoadBitmap(ScriptPath + 'Img\enemy-hover.bmp');
+
+  temp := Numeric_Load(ScriptPath + 'Img\Items\', 0);
+  Items := temp.images;
+
+  Dialogue_ImgCriticallyLow := LoadBitmap(ScriptPath + 'Img\critically-low.bmp');
+
+  Inv_ImgInInv := LoadBitmap(ScriptPath + 'Img\in-inv.bmp');
+  Bank_ImgInBank := LoadBitmap(ScriptPath + 'Img\in-bank.bmp');
+end;
+
+function ChrCount(cha: String; str: String): Integer;  //Honestly don't know why this function doesn't exist in scar
+var i, count: Integer;
+begin
+  count := 0;
+  for i := 0 to Length(str) do
+  begin
+    if (Copy(str, i, 1) = cha) then
+      Inc(count);
+  end;
+
+  Result := count;
+end;
+
+procedure Time_Reset;
+begin
+  Time_Time := GetSystemTime();
+end;
+
+function IsSafeClick(x: Integer; y: Integer): Boolean;
+var temp: Integer;
+begin
+  MoveMouse(x, y);
+  Sleep(250);
+
+  if (((FindBitmap(Global_ImgArrow, temp, temp) = false)
+    and (FindBitmapTolerance(Monster_ImgHover, temp, temp, 0) = false))
+    or (SAFETY = false)) then
+  begin
+    Result := true;
+    Exit;
+  end;
+
+  AddToReport('Issue: Clicking here would move you to the next screen.');
+end;
+
+function Time_Up: Boolean;
+begin
+  if (GetSystemTime() > Time_Time + TIME_TIMEOUT) then
+    Result := true;
+end;
+
+function EnumToInt(enum: Variant): Integer;
+begin
+  Result := enum;
+end;
+
+function Global_HasBlank: Boolean;
+var empty: Integer;
+begin
+  Result := FindBitmap(Global_ImgBlank, empty, empty);
+end;
+
+function GetTextAt(x, y: Integer; length: Integer; tolerance: Integer; color: Integer; chars: Integer): String;
+begin
+  Result := GetTextAtEx(x, y, tolerance, chars, false, false, 0, 0, color, length, true, tr_AllChars);
+end;
+
+procedure Click(x, y: Integer; left: Boolean);
+begin
+  if ((x <= 0) or (y <= 25) or (x >= 850) or (y >= 650)) then  //Temporary
+  begin
+    AddToReport('MouseClick out of range');
+    Writeln(inttostr(x) + ' ' + inttostr(y));
+    Exit;
+  end;
+
+  ClickMouse(x, y, left);
+end;
+
+procedure ClickWind(x, y, rx, ry: Integer; left: Boolean);
+begin
+  if ((x <= 0) or (y <= 25) or (x >= 850) or (y >= 650)) then  //Temporary
+  begin
+    AddToReport('MouseWindClick out of range');
+    Exit;
+  end;
+
+  ClickWindMouse(x, y, rx, ry, left);
+end;
+
+procedure ClickSafeClick(x: Integer; y: Integer; left: Boolean);
+begin
+  if (IsSafeClick(x, y)) then
+    Click(x, y, left);
+
+  Sleep(25);
+end;
+
+procedure ClickDialogue(x: Integer; y: Integer; num: Integer; left, safe: Boolean);
+var i: Integer;
+begin
+  if (safe) then
+  begin
+    ClickSafeClick(x, y, left)
+  end else
+  begin
+    Click(x, y, left);
+  end;
+
+  Wait(200);
+  for i := 1 to num + 1 do
+  begin
+    //ClickWindMouse(x + 10, y + 15 + (i * 10), 0, 0, true);
+    SendArrowSilentWait(2, 10);
+    Sleep(100);
+  end;
+
+  KeyDown(13);
+  Sleep(50);
+  KeyUp(13);
+end;
+
+procedure ClickDialogueEx(x: Integer; y: Integer; num: Integer; left, safe: Boolean; image: Integer);
+var i, empty: Integer;
+begin
+  if (safe) then
+  begin
+    ClickSafeClick(x, y, left)
+  end else
+  begin
+    ClickWind(x, y, 0, 0, left);
+  end;
+
+  Wait(200);
+  for i := 1 to num + 1 do
+  begin
+    //ClickWindMouse(x + 10, y + 15 + (i * 10), 0, 0, true);
+    SendArrowSilentWait(2, 10);
+    Sleep(100);
+  end;
+
+  if (FindBitmap(image, empty, empty)) then
+  begin
+    KeyDown(13);
+    Sleep(50);
+    KeyUp(13);
+  end;
+end;
+
+procedure Portal_Open;
+var
+x, y: Integer;
+empty: TPoint;
+begin
+  AddToReport('Ive got ants in my pants');
+
+  while((FindBitmapTolerance(Portal_Img, x, y, 50) = false) and (FindBitmapTolerance(Portal_Img2, x, y, 50) = false) and (FindBitmapTolerance(Portal_ImgDialogueZap, empty.x, empty.y, 50) = false)) do
+    Sleep(10);
+
+  if (FindBitmapTolerance(Portal_Img, x, y, 50) or FindBitmapTolerance(Portal_Img2, x, y, 50)) then
+    ClickDialogue(x, y, 0, true, false);
+
+  MoveMouse(332, 589);
+
+  Sleep(2000);
+end;
+
+procedure Portal_Use();
+var
+x, y: Integer;
+p1, p2, empty: TPoint;
+begin
+  while ((FindBitmapTolerance(Portal_ImgDialogueZap, empty.x, empty.y, 50) = false)) do
+  begin
+  writeln('Open Again');
+    Portal_Open;
+    Sleep(1000);
+  end;
+
+  AddToReport('Use Portal');
+  while(FindBitmapTolerance(Portal_ImgDialogueZap, empty.x, empty.y, 30)) do
+  begin
+    if (FindBitmapTolerance(Portal_ImgToSel, x, y, 20) or FindBitmapTolerance(Portal_ImgToUnsel1, x, y, 20) or FindBitmapTolerance(Portal_ImgToUnsel2, x, y, 20))then
+    begin
+      if (x = 0) then
+        AddToReport('Ops I really messed up portals');
+      
+      Click(x, y, true);
+      Sleep(200);
+      Click(x, y, true);
+      Sleep(2000);
+
+      KeyDown(13);
+      Sleep(50);
+      KeyUp(13);
+      Sleep(4000);
+    end else
+    begin
+      Writeln('Couldnt find destination');
+    end;
+  end;
+end;
+
+procedure Global_Close;
+var x, y: Integer;
+begin
+  if ((FindBitmapTolerance(Portal_ImgDialogueZap, x, y, 10))) then
+    Exit;
+
+  if (FindBitmapTolerance(Global_ImgClose, x, y, 10)) then
+  begin
+    KeyDown(27);
+    Sleep(50);
+    KeyUp(27);
+    ClickWind(x + 5, y + 5, 0, 0, true);
+    Sleep(1000);
+  end;
+  if (FindBitmapTolerance(Global_ImgRequest, x, y, 10)) then
+    ClickWind(25, 297, 0, 0, true);
+  //if (FindBitmapTolerance(Img_Dialogue_Ok, x, y, 50)) then
+  //  ClickWind(x, y, 0, 0, true);
+end;
+
+///
+function Inv_IsOpen: Boolean;
+var empty: TPoint;
+begin
+  result := FindBitmapTolerance(Inv_ImgInInv, empty.x, empty.y, 10);
+end;
+
+///
+function Bank_IsOpen: Boolean;
+var empty: TPoint;
+begin
+  result := FindBitmapTolerance(Bank_ImgInBank, empty.x, empty.y, 10);
+end;
+
+//
+function Battle_InBattle: Boolean;
+var x, y: Integer;
+begin
+  if (FindBitmap(Dialogue_ImgCriticallyLow, x, y)) then
+    Global_Close();
+
+  if (FindBitmap(Battle_ImgInBattle, x, y) and (Inv_IsOpen = false) and (Bank_IsOpen = false)) then
+    Result := true;
+end;

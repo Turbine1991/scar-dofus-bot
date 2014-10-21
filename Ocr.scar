@@ -1,0 +1,200 @@
+type Font = record
+  images: array[0..255] of integer;
+  width, height: Integer;
+end;
+
+type Numeric = record
+  images: array of integer;
+  maxn: integer;
+  size: integer;
+end;
+
+function Numeric_Load(directory: string; size: integer): Numeric;
+var
+i: Integer;
+numeric: Numeric;
+begin
+  numeric.size := size;
+
+  for i := 0 to 255 do
+  begin
+    if (FileExists(directory + IntToStr(i) + '.bmp')) then
+    begin
+      numeric.maxn := i;
+      SetArrayLength(numeric.images, i + 1);
+      numeric.images[i] := LoadBitmap(directory + IntToStr(i) + '.bmp');
+    end;
+  end;
+
+  Result := numeric;
+end;
+
+function Numeric_GetNumAt(x, y: integer; numeric: Numeric): Integer;
+var
+i: Integer;
+tolerance, xEmpty, yEmpty: Integer;
+begin
+  tolerance := 70;
+
+  for i := 0 to numeric.maxn do
+  begin
+    if FindTransparentBitmapTolerance(numeric.images[i], xEmpty, yEmpty, 0, x, y, x + numeric.size, y + numeric.size, tolerance) then
+    begin
+      Result := i
+      Exit;
+    end;
+  end;
+end;
+
+///
+function Font_Load(directory: string; width, height: integer): Font;
+var
+i: integer;
+font: Font;
+begin
+  font.width := width;
+  font.height := height;
+
+  for i := 0 to 255 do
+  begin
+    font.images[i] := LoadBitmap(directory + IntToStr(i) + '.bmp');
+  end;
+
+  Result := font;
+end;
+
+function Font_GetTextAt(x, y: integer; length: integer; font: Font): string;
+var
+i, j, k, yoff, width, height, e, x1, x2, y1, y2: integer;
+v: Variant;
+debugCanvas: TCanvas;
+accuracy: Extended;
+noNeg: Boolean;
+already: Boolean;
+just: Boolean;
+pos: Integer;
+last: String;
+pad: Integer;
+begin
+  Result := '';
+  debugCanvas := GetClientCanvas();
+  just := true;
+  x1 := x;
+  last := '-1';
+
+  for i := 0 to length do
+  begin
+      if ((pos = 1) and (last = '1') and (i > 2)) then
+      begin
+      decex(x1, 1);
+      pad := 1;
+      end;
+
+    yoff := 0;
+    for j := 255 downto 0 do  //Digits
+    begin
+    {if (i = 0) and (j = 45) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+ if (i = 1) and (j = 48 + 1) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+        //if (i = 0) and (j = 48 + 1) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+        //if (i = 1) and (j = 48 + 1) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+    if (i = 2) and (j = 44) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+    if (i = 3) and (j = 45) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+    if (i = 4) and (j = 48 + 3) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+    if (i = 5) and (j = 48 + 7) then SafeDrawBitmap(font.images[j], debugCanvas, x1, y);
+}
+        //if FindDeformedBitmapToleranceIn(font.images[j], xEmpty, yEmpty, x1, y1, x2, y2, tolerance, 1, true, accuracy) then
+        //if FindTransparentBitmapTolerance(font.images[j], xEmpty, yEmpty, 0, x1, y1, x2, y2, tolerance) then
+        //if FindBitmapMaskTolerance(font.images[j], xEmpty, yEmpty, x1, y1, x2, y2, tolerance, 1000) then
+        if font.images[j] > 0 then
+        begin
+          GetBitmapSize(font.images[j], width, height);
+          x2 := x1 + width;
+
+          if FindTransparentBitmapTolerance(font.images[j], e, e, 0, x1, y, x2, y + height, 30) then
+          begin
+            if ((j >= 48) and (j <= 57)) then
+            begin
+              v := Chr(j);
+              Result := Result + IntToStr(v);
+              last := IntToStr(v);
+              Inc(pos);
+
+              just := false;
+
+              if (pos = 1) then
+              begin
+//and (StrGet(Result, 2) = '1')
+//v := Result[2];
+//writeln(v);
+
+//writeln(v);
+                v := Result[1];
+                if (v = '-') then
+                begin
+                  v := Result[2];
+                  if (v = '1') then
+                  begin
+                  incex(x2, 1);
+                  //writeln('YAYAYYA');
+                  end;
+                  end;
+
+              if (pos = 4) then
+              begin
+               v := Result[3];
+                if (v = '-') then
+                begin
+                  v := Result[4];
+                  if (v = '3') then
+                  begin
+                  incex(x2, -1);
+                  //writeln('YAYAYYA');
+                  end;
+                  end;
+              end;
+              end;
+            end else
+            if (j = 44) then
+            begin
+              Result := Result + ',';
+              already := false;
+              just := true;
+              pos := 0;
+              last := '-1';
+              pad := 0;
+            end else
+            if ((j = 45) and (noNeg = false) and (already = false)) then
+            begin
+              Result := Result + '-';
+              noNeg := true;
+              already := true;
+              just := false;
+            end;
+
+              x1 := x2 + pad;
+
+              j := -1;
+          end;
+        end;
+    end;
+  end;
+end;
+
+function FindColorToleranceVertical(var x, y: integer; colour, xs, ys, xe, ye: integer; tolerance: Integer): boolean;
+var i: integer;
+begin
+  x := -1;
+  y := -1;
+
+  for i := xs to xe do
+  begin
+    if FindColorTolerance(x, y, colour, i, ys, (i + 1), ye, tolerance) then
+    begin
+      x := i;
+      Result := true;
+      exit;
+    end;
+  end;
+
+  Result := false;
+end;

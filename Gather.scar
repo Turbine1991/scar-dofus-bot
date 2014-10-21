@@ -1,0 +1,67 @@
+{.include_once Global.scar}
+{.include_once Battle.scar}
+{.include_once OCR.scar}
+
+type TGather = record
+  Gather: Numeric;
+  Use: Boolean;
+end;
+
+const
+GATHER_WHEAT = 0;
+GATHER_HOP = 1;
+GATHER_MAX = 1;
+
+///
+var
+GATHER_USE: Boolean;
+Gathering: array[0..GATHER_MAX] of TGather;
+Gather_Mouse: TPoint;
+
+///
+procedure Gather_Init();  //Initialize variables/values
+begin
+  GATHER_USE := StrToBool(ReadINI('Gather', 'use', ScriptPath + 'Setup\Config.ini'));
+
+  Gathering[GATHER_WHEAT].Gather := Numeric_Load(ScriptPath + 'Img\Gathering\Wheat\', 0);
+  Gathering[GATHER_HOP].Gather := Numeric_Load(ScriptPath + 'Img\Gathering\Hop\', 0);
+
+  Gathering[GATHER_WHEAT].Use := StrToBool(ReadINI('Gather', 'use_wheat', ScriptPath + 'Setup\Config.ini'));;
+  Gathering[GATHER_HOP].Use := StrToBool(ReadINI('Gather', 'use_hop', ScriptPath + 'Setup\Config.ini'));;
+end;
+
+///
+procedure Gather_Collect(x: Integer; y: Integer);
+begin
+  Gather_Mouse := Point(x, y);
+
+  ClickDialogue(x, y, 0, true, true);  //x + 4, y + 8
+  MoveMouse(265, 588);  //Outta the way, so not highlighted
+  Wait(3000);
+end;
+
+///
+function Gather_Find(var x: integer; var y: integer): Boolean;
+var
+i, j: Integer;  //Local variables defined here
+pos, empty: TPoint;
+begin
+  for i := 0 to GATHER_MAX do
+  begin
+    if (Gathering[i].Use) then
+    begin
+      //FindBitmapToleranceIn(Gathering[i].Gather.images[RandomRange(0, High(Gathering[i].Gather.images))]
+
+      for j := High(Gathering[i].Gather.images) downto 0 do
+      begin
+        if ((FindBitmapToleranceIn(Gathering[i].Gather.images[j], x, y, Gather_Mouse.x - 60, Gather_Mouse.y - 60, Gather_Mouse.x + 60, Gather_Mouse.y + 60, 30)
+          or FindBitmapToleranceIn(Gathering[i].Gather.images[j], x, y, 37, 37, 740, 537, 30))
+            and (Battle_FindMonster(empty, Point(x - 10, y - 10), Point(x + 10, y + 10)) = false)) then
+        begin
+          Result := true;
+          Exit;
+        end;
+      end;
+    end;
+  end;
+end;

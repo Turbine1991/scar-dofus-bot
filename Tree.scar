@@ -1,0 +1,85 @@
+{.include_once Global.scar}
+{.include_once OCR.scar}
+
+type TTree = record
+  Tree: Numeric;
+  Use: Boolean;
+end;
+
+const
+TREE_ASH = 0;
+TREE_CHESTNUT = 1;
+TREE_WALNUT = 2;
+TREE_OAK = 3;
+TREE_BOMBU = 4;
+TREE_MAX = 4;
+
+///
+var
+TREE_USE: Boolean;  //Would be const, but loaded during runtime from config
+Trees: array[0..TREE_MAX] of TTree;
+Tree_ImageChop: Integer;
+
+///
+procedure Tree_Init();
+begin
+  TREE_USE := StrToBool(ReadINI('Tree', 'use', ScriptPath + 'Setup\Config.ini'));
+
+  Trees[TREE_ASH].Tree := Numeric_Load(ScriptPath + 'Img\Trees\Ash\', 0);
+  Trees[TREE_CHESTNUT].Tree := Numeric_Load(ScriptPath + 'Img\Trees\Chestnut\', 0);
+  Trees[TREE_WALNUT].Tree := Numeric_Load(ScriptPath + 'Img\Trees\Walnut\', 0);
+  Trees[TREE_OAK].Tree := Numeric_Load(ScriptPath + 'Img\Trees\Oak\', 0);
+  Trees[TREE_BOMBU].Tree := Numeric_Load(ScriptPath + 'Img\Trees\Bombu\', 0);
+
+  Trees[TREE_ASH].Use := StrToBool(ReadINI('Tree', 'use_ash', ScriptPath + 'Setup\Config.ini'));
+  Trees[TREE_CHESTNUT].Use := StrToBool(ReadINI('Tree', 'use_chestnut', ScriptPath + 'Setup\Config.ini'));
+  Trees[TREE_WALNUT].Use := StrToBool(ReadINI('Tree', 'use_walnut', ScriptPath + 'Setup\Config.ini'));
+  Trees[TREE_OAK].Use := StrToBool(ReadINI('Tree', 'use_oak', ScriptPath + 'Setup\Config.ini'));
+  Trees[TREE_BOMBU].Use := StrToBool(ReadINI('Tree', 'use_bombu', ScriptPath + 'Setup\Config.ini'));
+
+  Tree_ImageChop := LoadBitmap(ScriptPath + 'Img\dialogue-chop.bmp');
+end;
+
+///
+procedure Tree_Chop(x: Integer; y: Integer);
+var empty: Integer;
+begin
+  if (Inv_IsOpen or Bank_IsOpen) then
+    Exit;
+
+  MoveMouse(x, y);
+  Sleep(250);
+  if (FindBitmap(Enemy_ImgHover, empty, empty) = false) then
+  begin
+    ClickDialogueEx(x, y, 0, true, true, Tree_ImageChop);
+    ClickMouse(334, 597, true);  //Outta the way, so not highlighted
+    Wait(4000);
+  end;
+end;
+
+///
+function Tree_Find(var x: integer; var y: integer): Boolean;
+var
+i, j: Integer;
+pos: TPoint;
+begin
+  AddToReport('Looking for tree...');
+
+  for i := 0 to TREE_MAX do
+  begin
+    if (Trees[i].Use) then
+    begin
+      for j := 0 to High(Trees[i].Tree.images) do
+      begin
+        if (FindBitmapToleranceIn(Trees[i].Tree.images[j], x, y, 37, 37, 740, 537, 20)) then
+        begin
+          Result := true;
+          AddToReport('Finders Keepers');
+          Exit;
+        end;
+      end;
+    end;
+  end;
+
+  AddToReport('I could have sworn I saw some here awhile ago');
+end;
